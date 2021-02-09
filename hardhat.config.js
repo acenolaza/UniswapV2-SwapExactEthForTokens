@@ -38,7 +38,7 @@ module.exports = {
     hardhat: {
       forking: {
         url: `${process.env.ALCHEMY_MAINNET_RPC_URL}${process.env.ALCHEMY_API_KEY}`,
-        blockNumber: 11758978,
+        // blockNumber: 11758978,
       },
       // loggingEnabled: true,
     },
@@ -48,7 +48,7 @@ module.exports = {
     // }
   },
   solidity: {
-    version: "0.7.3",
+    version: "0.7.4",
     // settings: {
     //   optimizer: {
     //     enabled: true,

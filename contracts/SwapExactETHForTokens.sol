@@ -1,7 +1,7 @@
-pragma solidity ^0.7.3;
+// SPDX-License-Identifier: ISC
+pragma solidity 0.7.4;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 interface IUniswapV2Router01 {
     function WETH() external pure returns (address);
@@ -20,56 +20,76 @@ interface IUniswapV2Router01 {
 }
 
 contract SwapExactETHForTokens {
-    address internal constant UNISWAP_ROUTER_ADDRESS =
-        address(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
-    address internal constant DAI_TOKEN_ADDRESS =
-        address(0x6B175474E89094C44Da98b954EedeAC495271d0F);
-
     IUniswapV2Router01 public uniswapRouter;
-    IERC20 private daiToken;
 
-    constructor() {
-        uniswapRouter = IUniswapV2Router01(UNISWAP_ROUTER_ADDRESS);
-        daiToken = IERC20(DAI_TOKEN_ADDRESS);
+    address private owner;
+    address private token;
+    address private recepient;
+
+    constructor(
+        address _uniswapRouter,
+        address _token,
+        address _recepient
+    ) {
+        owner = msg.sender;
+
+        uniswapRouter = IUniswapV2Router01(_uniswapRouter);
+
+        token = _token;
+        recepient = _recepient;
     }
 
-    function swapExactETHForTokens(address _to) public payable {
-        console.log("address(this):", address(this));
-        console.log("wallet:", msg.sender);
-        console.log(
-            "token balance of %s before swap: %s",
-            _to,
-            daiToken.balanceOf(_to) / (1 ether)
-        );
+    function swapExactETHForTokensOnUniswap(
+        address _token,
+        address _to,
+        uint256 _amountIn,
+        uint256 _amountOutMin,
+        uint256 _deadline
+    ) internal {
+        require(_amountIn > 0, "insufficient eth value");
 
         // create exchange path
         address[] memory path = new address[](2);
         path[0] = uniswapRouter.WETH();
-        path[1] = DAI_TOKEN_ADDRESS;
+        path[1] = _token;
 
-        uint256 amountOutMin = uniswapRouter.getAmountsOut(msg.value, path)[1];
-
-        uint256 deadline = block.timestamp + 15; // using 'now' for convenience, for mainnet pass deadline from frontend!
+        // set the minimum amount of output tokens that must be received for the transaction not to revert
+        // if _amountOutMin is less or equal to 0 calculate it with getAmountsOut()
+        uint256 amountOutMin;
+        if (_amountOutMin <= 0) {
+            amountOutMin = uniswapRouter.getAmountsOut(_amountIn, path)[1];
+        } else {
+            amountOutMin = _amountOutMin;
+        }
 
         // swap ETH for token
-        uint256[] memory amounts =
-            uniswapRouter.swapExactETHForTokens{value: msg.value}(
-                amountOutMin,
-                path,
-                _to,
-                deadline
-            );
-
-        console.log(
-            "token balance of %s after swap: %s",
+        //uint256[] memory amounts =
+        uniswapRouter.swapExactETHForTokens{value: _amountIn}(
+            amountOutMin,
+            path,
             _to,
-            daiToken.balanceOf(_to) / (1 ether)
+            _deadline
         );
+        // TODO: publish event?
 
-        // return eth to account
-        // address(msg.sender).transfer(msg.value);
+        // console.log("Leftover: %s", address(this).balance);
     }
 
     // important to receive ETH
-    receive() external payable {}
+    receive() external payable {
+        // unix timestamp after which the transaction will revert
+        uint256 deadline = block.timestamp + 600; // transaction expires in 600 seconds (10 minutes)
+        swapExactETHForTokensOnUniswap(
+            token,
+            recepient,
+            msg.value,
+            0,
+            deadline
+        );
+    }
+
+    function withdraw() external {
+        require(msg.sender == owner, "msg.sender must be the owner");
+        msg.sender.transfer(address(this).balance);
+    }
 }

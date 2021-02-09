@@ -1,9 +1,9 @@
-const {expect} = require("chai");
+const { expect } = require("chai");
 // The ethers variable is available in the global scope.
 // If you like your code always being explicit, you can uncomment this line below:
 // const { ethers } = require("hardhat");
 
-describe("Greeter", function () {
+describe.skip("Greeter", function () {
   let accounts;
 
   before(async function () {
