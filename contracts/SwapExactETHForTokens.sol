@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: ISC
 pragma solidity 0.7.4;
 
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
 // import "hardhat/console.sol";
 
 interface IUniswapV2Router01 {
@@ -19,29 +22,48 @@ interface IUniswapV2Router01 {
         returns (uint256[] memory amounts);
 }
 
-contract SwapExactETHForTokens {
-    IUniswapV2Router01 public uniswapRouter;
-
-    address private owner;
+contract SwapExactETHForTokens is Ownable {
+    IUniswapV2Router01 private uniswapRouter;
     address private token;
-    address private recepient;
+    address private recipient;
+    address private exchange;
+    uint8 private exchangePercentage;
+
+    event ETHSwapped(uint256[] amounts);
 
     constructor(
         address _uniswapRouter,
         address _token,
-        address _recepient
-    ) {
-        owner = msg.sender;
+        address _recipient,
+        address _exchange,
+        uint8 _exchangePercentage
+    ) Ownable() {
+        require(_recipient != address(0), "invalid recipient address");
+        require(_exchangePercentage <= 100, "invalid percentage value");
 
         uniswapRouter = IUniswapV2Router01(_uniswapRouter);
-
         token = _token;
-        recepient = _recepient;
+        recipient = _recipient;
+        exchange = _exchange;
+        exchangePercentage = _exchangePercentage;
+    }
+
+    function setRecipient(address _recipient) public onlyOwner {
+        require(_recipient != address(0), "invalid recipient address");
+        recipient = _recipient;
+    }
+
+    function setExchange(address _exchange) public onlyOwner {
+        exchange = _exchange;
+    }
+
+    function setExchangePercentage(uint8 _exchangePercentage) public onlyOwner {
+        require(_exchangePercentage <= 100, "invalid percentage value");
+        exchangePercentage = _exchangePercentage;
     }
 
     function swapExactETHForTokensOnUniswap(
         address _token,
-        address _to,
         uint256 _amountIn,
         uint256 _amountOutMin,
         uint256 _deadline
@@ -63,33 +85,68 @@ contract SwapExactETHForTokens {
         }
 
         // swap ETH for token
-        //uint256[] memory amounts =
-        uniswapRouter.swapExactETHForTokens{value: _amountIn}(
-            amountOutMin,
-            path,
-            _to,
-            _deadline
-        );
-        // TODO: publish event?
+        uint256[] memory amounts =
+            uniswapRouter.swapExactETHForTokens{value: _amountIn}(
+                amountOutMin,
+                path,
+                address(this),
+                _deadline
+            );
 
-        // console.log("Leftover: %s", address(this).balance);
+        emit ETHSwapped(amounts);
+    }
+
+    function percentageOf(uint256 _amount, uint256 _basisPoints)
+        internal
+        pure
+        returns (uint256)
+    {
+        return (_amount * _basisPoints) / 10000;
     }
 
     // important to receive ETH
     receive() external payable {
+        // TODO: research if deadline can be infinite
         // unix timestamp after which the transaction will revert
         uint256 deadline = block.timestamp + 600; // transaction expires in 600 seconds (10 minutes)
-        swapExactETHForTokensOnUniswap(
-            token,
-            recepient,
-            msg.value,
-            0,
-            deadline
-        );
+        swapExactETHForTokensOnUniswap(token, msg.value, 0, deadline);
+
+        IERC20 tokenContract = IERC20(token);
+        uint256 tokenBalance = tokenContract.balanceOf(address(this));
+        if (exchange != address(0) && exchangePercentage > 0) {
+            uint256 exchangeAmount =
+                percentageOf(tokenBalance, uint256(exchangePercentage) * 100);
+            require(
+                tokenContract.transfer(
+                    recipient,
+                    tokenBalance - exchangeAmount
+                ),
+                "transfer failed."
+            );
+            require(
+                tokenContract.transfer(exchange, exchangeAmount),
+                "transfer failed."
+            );
+        } else {
+            require(
+                tokenContract.transfer(recipient, tokenBalance),
+                "transfer failed."
+            );
+        }
     }
 
-    function withdraw() external {
-        require(msg.sender == owner, "msg.sender must be the owner");
+    // sends ETH balance to msg.sender
+    function withdraw() external onlyOwner {
         msg.sender.transfer(address(this).balance);
+    }
+
+    // sends token balance to msg.sender
+    function withdraw(address _token) external onlyOwner {
+        IERC20 tokenContract = IERC20(_token);
+        uint256 tokenBalance = tokenContract.balanceOf(address(this));
+        require(
+            tokenContract.transfer(msg.sender, tokenBalance),
+            "transfer failed."
+        );
     }
 }

@@ -42,6 +42,10 @@ module.exports = {
       },
       // loggingEnabled: true,
     },
+    ropsten: {
+      url: `https://ropsten.infura.io/v3/${process.env.INFURA_PROJECT_ID}`,
+      accounts: [`0x${process.env.ROPSTEN_PRIVATE_KEY}`],
+    },
     // rinkeby: {
     //   url: "https://rinkeby.infura.io/v3/123abc123abc123abc123abc123abcde",
     //   accounts: [privateKey1, privateKey2, ...]

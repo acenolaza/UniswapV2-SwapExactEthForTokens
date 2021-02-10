@@ -13,26 +13,17 @@ describe("SwapExactETHForTokens contract", function () {
     "function decimals() external view returns (uint8)",
   ];
 
+  let SwapExactETHForTokens;
   let hardhatSwapExactETHForTokens;
   let owner;
-  let addr1;
-  let addr2;
-  let addrs;
+  let acc1;
+  let acc2;
+  let accs;
   let daiContract;
   let daiDecimals;
 
   before(async function () {
-    [owner, addr1, addr2, ...addrs] = await ethers.getSigners();
-
-    const SwapExactETHForTokens = await ethers.getContractFactory(
-      "SwapExactETHForTokens"
-    );
-    hardhatSwapExactETHForTokens = await SwapExactETHForTokens.deploy(
-      UNISWAP_ROUTER_ADDRESS,
-      DAI_TOKEN_ADDRESS,
-      owner.address
-    );
-    await hardhatSwapExactETHForTokens.deployed();
+    [owner, acc1, acc2, ...accs] = await ethers.getSigners();
 
     daiContract = new ethers.Contract(
       DAI_TOKEN_ADDRESS,
@@ -40,39 +31,106 @@ describe("SwapExactETHForTokens contract", function () {
       ethers.provider
     );
     daiDecimals = await daiContract.decimals();
+
+    SwapExactETHForTokens = await ethers.getContractFactory(
+      "SwapExactETHForTokens"
+    );
   });
 
   describe("Deployment", function () {
     it("Should set the right owner", async function () {
+      hardhatSwapExactETHForTokens = await SwapExactETHForTokens.deploy(
+        UNISWAP_ROUTER_ADDRESS,
+        DAI_TOKEN_ADDRESS,
+        owner.address,
+        acc1.address,
+        25
+      );
+      await hardhatSwapExactETHForTokens.deployed();
+
       expect(await hardhatSwapExactETHForTokens.signer.address).to.equal(
         owner.address
       );
     });
 
-    // it("Should assign the total supply of tokens to the owner", async function () {
-    //   const ownerBalance = await hardhatToken.balanceOf(owner.address);
-    //   expect(await hardhatSwapExactETHForTokens.totalSupply()).to.equal(ownerBalance);
-    // });
+    it("Should fail if invalid recipient address is passed", async function () {
+      try {
+        await SwapExactETHForTokens.deploy(
+          UNISWAP_ROUTER_ADDRESS,
+          DAI_TOKEN_ADDRESS,
+          0,
+          acc1.address,
+          10
+        );
+      } catch (e) {
+        expect(e).instanceOf(Error);
+      }
+    });
+
+    it("Should fail if invalid percentage is passed", async function () {
+      await expect(
+        SwapExactETHForTokens.deploy(
+          UNISWAP_ROUTER_ADDRESS,
+          DAI_TOKEN_ADDRESS,
+          owner.address,
+          acc1.address,
+          101
+        )
+      ).to.be.revertedWith("revert invalid percentage value");
+      try {
+        await SwapExactETHForTokens.deploy(
+          UNISWAP_ROUTER_ADDRESS,
+          DAI_TOKEN_ADDRESS,
+          owner.address,
+          acc1.address,
+          -1
+        );
+      } catch (e) {
+        expect(e).instanceOf(Error);
+      }
+    });
   });
 
   describe("Transactions", function () {
     it("Should swap exact ETH for tokens", async function () {
       expect(await daiContract.balanceOf(owner.address)).to.equal(0);
 
+      hardhatSwapExactETHForTokens = await SwapExactETHForTokens.deploy(
+        UNISWAP_ROUTER_ADDRESS,
+        DAI_TOKEN_ADDRESS,
+        owner.address,
+        acc1.address,
+        25
+      );
+      await hardhatSwapExactETHForTokens.deployed();
+
       const fromEther = "5.0";
       tx = {
         to: hardhatSwapExactETHForTokens.address,
         value: ethers.utils.parseEther(fromEther),
       };
-      await addr1.sendTransaction(tx);
+      await acc2.sendTransaction(tx);
 
-      const toDai = await daiContract.balanceOf(owner.address);
-      console.log(
-        `🚀 ${fromEther} ETH -> ${ethers.utils.formatEther(toDai)} DAI`
+      const provider = await ethers.getDefaultProvider();
+      expect(
+        await provider.getBalance(hardhatSwapExactETHForTokens.address)
+      ).to.equal(0);
+
+      const toDai = await daiContract.balanceOf(
+        hardhatSwapExactETHForTokens.address
       );
-      expect(toDai).to.be.above(0);
+      const toDaiRecipient = await daiContract.balanceOf(owner.address);
+      const toDaiExchange = await daiContract.balanceOf(acc1.address);
+      console.log(
+        `🚀 ${fromEther} ETH -> ${ethers.utils.formatEther(
+          toDaiRecipient
+        )} + ${ethers.utils.formatEther(toDaiExchange)} DAI`
+      );
+      expect(toDai).to.equal(0);
+      expect(toDaiRecipient).to.be.above(0);
+      expect(toDaiExchange).to.be.above(0);
 
-      // await hardhatSwapExactETHForTokens.swapExactETHForTokens(addr1.address, {
+      // await hardhatSwapExactETHForTokens.swapExactETHForTokens(owner.address, {
       //   value: ethers.utils.parseEther("5"),
       // });
     });
