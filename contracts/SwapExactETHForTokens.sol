@@ -48,16 +48,31 @@ contract SwapExactETHForTokens is Ownable {
         exchangePercentage = _exchangePercentage;
     }
 
-    function setRecipient(address _recipient) public onlyOwner {
+    function getRecipient() external view returns (address) {
+        return recipient;
+    }
+
+    function setRecipient(address _recipient) external onlyOwner {
         require(_recipient != address(0), "invalid recipient address");
         recipient = _recipient;
     }
 
-    function setExchange(address _exchange) public onlyOwner {
+    function getExchange() external view returns (address) {
+        return exchange;
+    }
+
+    function setExchange(address _exchange) external onlyOwner {
         exchange = _exchange;
     }
 
-    function setExchangePercentage(uint8 _exchangePercentage) public onlyOwner {
+    function getExchangePercentage() external view returns (uint8) {
+        return exchangePercentage;
+    }
+
+    function setExchangePercentage(uint8 _exchangePercentage)
+        external
+        onlyOwner
+    {
         require(_exchangePercentage <= 100, "invalid percentage value");
         exchangePercentage = _exchangePercentage;
     }
@@ -106,7 +121,6 @@ contract SwapExactETHForTokens is Ownable {
 
     // important to receive ETH
     receive() external payable {
-        // TODO: research if deadline can be infinite
         // unix timestamp after which the transaction will revert
         uint256 deadline = block.timestamp + 600; // transaction expires in 600 seconds (10 minutes)
         swapExactETHForTokensOnUniswap(token, msg.value, 0, deadline);
@@ -136,12 +150,12 @@ contract SwapExactETHForTokens is Ownable {
     }
 
     // sends ETH balance to msg.sender
-    function withdraw() external onlyOwner {
+    function withdrawEthers() external onlyOwner {
         msg.sender.transfer(address(this).balance);
     }
 
     // sends token balance to msg.sender
-    function withdraw(address _token) external onlyOwner {
+    function withdrawTokens(address _token) external onlyOwner {
         IERC20 tokenContract = IERC20(_token);
         uint256 tokenBalance = tokenContract.balanceOf(address(this));
         require(

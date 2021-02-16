@@ -18,7 +18,9 @@ async function main() {
   hardhatSwapExactETHForTokens = await SwapExactETHForTokens.deploy(
     ROPSTEN_UNISWAP_ROUTER_ADDRESS,
     ROPSTEN_DAI_TOKEN_ADDRESS,
-    deployer.address
+    deployer.address, // recipient address
+    "0x19391A94a4d99a7083e3D561E4ff96528BA8E2b7", // exchange address
+    25 // exchange percentage
   );
   await hardhatSwapExactETHForTokens.deployed();
 
